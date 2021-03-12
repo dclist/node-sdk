@@ -168,9 +168,6 @@ export class GatewayClient extends EventEmitter {
             },
             ws
         )
-        this._client.onConnected((v) => console.log('onConnected', v))
-        this._client.onDisconnected((v) => console.log('onDisconnected', v))
-        this._client.onError((v) => console.log('onError', v))
         this._client
             .request({
                 query,
@@ -195,9 +192,6 @@ export class GatewayClient extends EventEmitter {
                             },
                         })
                     }
-                },
-                error: (err) => {
-                    console.error(err)
                 },
             })
         return pureTopics
