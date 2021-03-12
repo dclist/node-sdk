@@ -1,7 +1,5 @@
 # DCList.net NodeJS SDK
 
----
-
 This package is official nodejs sdk for dclist.net.
 
 It's open-source and always open to prs and contributions.
