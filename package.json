@@ -16,8 +16,10 @@
     "dlc sdk"
   ],
   "files": [
-    "./package.json",
-    "./dist"
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "dist/**/*"
   ],
   "scripts": {
     "lint": "eslint --fix src",
