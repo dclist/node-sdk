@@ -110,7 +110,7 @@ export class GatewayClient extends EventEmitter {
             validateStatus: () => true,
         })
 
-        if (request.data.data === null && request.data.errors) {
+        if (request.data.data?.[queryName] === null && request.data.errors) {
             const error = request.data.errors[0]
             throw new ApiError(error)
         } else if (request.data.data && request.data.data[queryName]) {
