@@ -16,6 +16,7 @@ import { GraphqlQueries } from '../helpers/GraphqlQueries'
 import { dedupeArray, Validator } from '../helpers/Utils'
 import { SubscriptionClient } from 'subscriptions-transport-ws'
 import ws from 'ws'
+import { AutoPoster } from './AutoPoster'
 
 type CustomFieldSelectors = Record<SubscriptionsTopicsEnum, FieldSelector>
 
@@ -32,6 +33,11 @@ type GatewayClientOptions = {
      * Token Generated Via dclist.net
      */
     token: string
+    /**
+     * Discord client
+     */
+    client?: any // eslint-disable-line
+    enablePoster?: boolean
 }
 
 export declare interface GatewayClient {
@@ -51,6 +57,7 @@ export class GatewayClient extends EventEmitter {
         SubscriptionsTopicsEnum.NEW_COMMENT,
     ]
     private _client: SubscriptionClient | undefined
+    private _poster: AutoPoster | undefined
 
     constructor(_options: GatewayClientOptions) {
         super()
@@ -59,6 +66,13 @@ export class GatewayClient extends EventEmitter {
         }
         this._options = {
             ..._options,
+            enablePoster: _options.enablePoster ?? false,
+        }
+        if (this._options.enablePoster) {
+            this._poster = new AutoPoster({
+                client: _options.client,
+                posterMethod: this.postStats,
+            })
         }
     }
 
@@ -110,7 +124,7 @@ export class GatewayClient extends EventEmitter {
             validateStatus: () => true,
         })
 
-        if (request.data.data?.[queryName] === null && request.data.errors) {
+        if (request.data.errors) {
             const error = request.data.errors[0]
             throw new ApiError(error)
         } else if (request.data.data && request.data.data[queryName]) {
@@ -269,12 +283,7 @@ export class GatewayClient extends EventEmitter {
         )
     }
 
-    /**
-     * Manually posts bot stats
-     * @param {BotStats} stats Bot stats
-     * @return Promise<boolean>
-     */
-    public postStats = async (stats: BotStats): Promise<boolean> => {
+    private postStats = async (stats: BotStats): Promise<boolean> => {
         const queryObj = GraphqlQueries.postBotStats
         return (
             (await this._apiRequest<boolean>(queryObj.query, queryObj.queryName, undefined, {

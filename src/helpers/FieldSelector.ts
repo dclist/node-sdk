@@ -45,4 +45,8 @@ export class FieldSelector<T = never> {
         }
         return finalString.join(' ')
     }
+
+    static parse: <TT = never>(fields: FieldList<TT>) => FieldSelector<TT> = <TT = never>(
+        fields: FieldList<TT>
+    ): FieldSelector<TT> => new FieldSelector<TT>(fields)
 }

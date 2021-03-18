@@ -3,6 +3,6 @@ import { GatewayClient } from './lib/GatewayClient'
 import { FieldSelector } from './helpers/FieldSelector'
 import { SubscriptionsTopicsEnum } from './types'
 
-setDefaultLevel('WARN')
+setDefaultLevel('INFO')
 export { setDefaultLevel, GatewayClient, FieldSelector, SubscriptionsTopicsEnum }
 export * from './types'
