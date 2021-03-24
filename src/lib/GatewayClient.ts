@@ -32,7 +32,7 @@ type GatewayClientOptions = {
     /**
      * Token Generated Via dclist.net
      */
-    token: string
+    token?: string
     /**
      * Discord client
      */
@@ -59,14 +59,19 @@ export class GatewayClient extends EventEmitter {
     private _client: SubscriptionClient | undefined
     private _poster: AutoPoster | undefined
 
-    constructor(_options: GatewayClientOptions) {
+    constructor(_options: GatewayClientOptions = {}) {
         super()
-        if (!_options.token) {
-            throw new InvalidToken()
-        }
+        const envToken = process.env.DCLIST_TOKEN
         this._options = {
             ..._options,
+            token: _options.token ?? envToken,
             enablePoster: _options.enablePoster ?? false,
+        }
+        if (!this._options.token) {
+            throw new InvalidToken()
+        }
+        if (!envToken) {
+            process.env.DCLIST_TOKEN = this._options.token
         }
         if (this._options.enablePoster) {
             this._poster = new AutoPoster({
