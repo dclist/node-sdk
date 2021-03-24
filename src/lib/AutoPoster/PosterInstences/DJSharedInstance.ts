@@ -20,11 +20,12 @@ export class DJSharedInstance implements IPosterInstance {
             (curr: number, acc: number) => curr + acc,
             0
         )
-        const userCount = (await this._options.client.fetchClientValues('users.cache.size')).reduce(
-            (curr: number, acc: number) => curr + acc,
-            0
-        )
-        const shardCount = this._options.client.shards.array().length
+        const userCount = (
+            await this._options.client.broadcastEval(
+                'this.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)'
+            )
+        ).reduce((curr: number, acc: number) => curr + acc, 0)
+        const shardCount = this._options.client.totalShards
         return {
             guildCount,
             userCount,
