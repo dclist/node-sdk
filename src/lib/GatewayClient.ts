@@ -95,8 +95,26 @@ export class GatewayClient extends EventEmitter {
                 }),
             [SubscriptionsTopicsEnum.NEW_COMMENT]:
                 _selectors[SubscriptionsTopicsEnum.NEW_COMMENT] ??
-                new FieldSelector({
-                    _id: 1,
+                new FieldSelector<Comment>({
+                    subject: {
+                        id: 1,
+                        username: 1,
+                        discriminator: 1,
+                        avatar: 1,
+                        website: 1,
+                        github: 1,
+                    },
+                    author: {
+                        id: 1,
+                        username: 1,
+                        discriminator: 1,
+                        avatar: 1,
+                        website: 1,
+                        github: 1,
+                    },
+                    type: 1,
+                    like: 1,
+                    content: 1,
                 }),
         }
         const rawQuery = GraphqlQueries.subscribeToTopics
