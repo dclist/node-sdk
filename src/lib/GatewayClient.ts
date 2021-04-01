@@ -142,7 +142,7 @@ export class GatewayClient extends EventEmitter {
             }>
         >(this._apiUrl, bodyObject, {
             headers: {
-                Authorization: `Bearer ${this._options.token}`,
+                Authorization: `Sdk ${this._options.token}`,
             },
             validateStatus: () => true,
         })
