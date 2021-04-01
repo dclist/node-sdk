@@ -230,6 +230,14 @@ export class GatewayClient extends EventEmitter {
                         })
                     }
                 },
+                error: (err) => {
+                    throw new ApiError({
+                        message: err.message,
+                        extensions: {
+                            code: 'API_ERROR',
+                        },
+                    })
+                },
             })
         return pureTopics
     }
