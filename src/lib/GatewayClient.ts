@@ -199,7 +199,7 @@ export class GatewayClient extends EventEmitter {
                 reconnectionAttempts: 20,
                 connectionParams: () => ({
                     headers: {
-                        Authorization: `Bearer ${this._options.token}`,
+                        Authorization: `Sdk ${this._options.token}`,
                     },
                 }),
             },
