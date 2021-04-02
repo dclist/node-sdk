@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events'
 import { FieldSelector } from '../helpers/FieldSelector'
 import { ApiError, InvalidArgument, InvalidToken } from '../helpers/Errors'
-import Axios from 'axios'
 import {
     Bot,
     BotStats,
@@ -14,9 +13,10 @@ import {
 } from '../types'
 import { GraphqlQueries } from '../helpers/GraphqlQueries'
 import { dedupeArray, Validator } from '../helpers/Utils'
-import { SubscriptionClient } from 'subscriptions-transport-ws'
-import ws from 'ws'
+import { createClient, Client, SubscribePayload } from 'graphql-ws'
+import ws, { CloseEvent } from 'ws'
 import { AutoPoster } from './AutoPoster'
+import { v4 } from 'uuid'
 
 type CustomFieldSelectors = Record<SubscriptionsTopicsEnum, FieldSelector>
 
@@ -49,36 +49,44 @@ export declare interface GatewayClient {
 }
 
 export class GatewayClient extends EventEmitter {
-    private _options: GatewayClientOptions
-    private _apiUrl = 'https://api.dclist.net/graphql'
-    private _subUrl = 'wss://api.dclist.net/subscribe'
-    private topicList: readonly SubscriptionsTopicsEnum[] = [
+    #options: GatewayClientOptions
+    #apiUrl = 'wss://api.dclist.net/subscribe'
+    #topicList: readonly SubscriptionsTopicsEnum[] = [
         SubscriptionsTopicsEnum.NEW_VOTE,
         SubscriptionsTopicsEnum.NEW_COMMENT,
     ]
-    private _client: SubscriptionClient | undefined
-    private _poster: AutoPoster | undefined
+    #client: Client
+    #poster: AutoPoster | undefined
 
     constructor(_options: GatewayClientOptions = {}) {
         super()
         const envToken = process.env.DCLIST_TOKEN
-        this._options = {
+        this.#options = {
             ..._options,
             token: _options.token ?? envToken,
             enablePoster: _options.enablePoster ?? false,
         }
-        if (!this._options.token) {
+        if (!this.#options.token) {
             throw new InvalidToken()
         }
-        if (!envToken) {
-            process.env.DCLIST_TOKEN = this._options.token
-        }
-        if (this._options.enablePoster) {
-            this._poster = new AutoPoster({
-                client: _options.client,
+        if (!envToken) process.env.DCLIST_TOKEN = this.#options.token
+        if (this.#options.enablePoster) {
+            this.#poster = new AutoPoster({
+                client: this.#options.client,
                 posterMethod: this.postStats,
             })
         }
+        this.#client = createClient({
+            url: this.#apiUrl,
+            connectionParams: {
+                headers: {
+                    Authorization: `Sdk ${this.#options.token}`,
+                },
+            },
+            lazy: false,
+            generateID: () => v4(),
+            webSocketImpl: ws,
+        })
     }
 
     private generateSubscriptionQuery = (_selectors: Partial<CustomFieldSelectors>): string => {
@@ -123,6 +131,17 @@ export class GatewayClient extends EventEmitter {
             .replace('$FIELDS:VOTE:COMMENT$', fieldSelectors[SubscriptionsTopicsEnum.NEW_COMMENT].parsedFields)
     }
 
+    private wsRequest = async <T>(payload: SubscribePayload) => {
+        return new Promise<T>((resolve, reject) => {
+            let result: T
+            this.#client.subscribe<T>(payload, {
+                next: (data) => (result = data),
+                error: reject,
+                complete: () => resolve(result),
+            })
+        })
+    }
+
     private _apiRequest = async <T>(
         query: string,
         queryName: string,
@@ -136,22 +155,17 @@ export class GatewayClient extends EventEmitter {
             variables,
         }
 
-        const request = await Axios.post<
+        const request = await this.wsRequest<
             GraphqlResponse<{
                 [x: string]: T
             }>
-        >(this._apiUrl, bodyObject, {
-            headers: {
-                Authorization: `Sdk ${this._options.token}`,
-            },
-            validateStatus: () => true,
-        })
+        >(bodyObject)
 
-        if (request.data.errors) {
-            const error = request.data.errors[0]
+        if (request.errors) {
+            const error = request.errors[0]
             throw new ApiError(error)
-        } else if (request.data.data && request.data.data[queryName]) {
-            return request.data.data[queryName]
+        } else if (request.data && request.data[queryName]) {
+            return request.data[queryName]
         } else return undefined
     }
 
@@ -171,7 +185,7 @@ export class GatewayClient extends EventEmitter {
         // Check provided topics
         const pureTopics = dedupeArray<SubscriptionsTopicsEnum>(topics)
         for (const pureTopic of pureTopics) {
-            if (!this.topicList.includes(pureTopic)) {
+            if (!this.#topicList.includes(pureTopic)) {
                 throw new InvalidArgument(`Topic "${pureTopic}" is invalid`)
             }
         }
@@ -181,7 +195,7 @@ export class GatewayClient extends EventEmitter {
                 const selectorKey = key as SubscriptionsTopicsEnum
                 const selector = selectors[selectorKey]
                 if (selector) {
-                    if (!this.topicList.includes(selectorKey)) {
+                    if (!this.#topicList.includes(selectorKey)) {
                         throw new InvalidArgument(`Invalid topic "${key}" for custom field selector`)
                     }
                     if (!(selector instanceof FieldSelector)) {
@@ -191,31 +205,18 @@ export class GatewayClient extends EventEmitter {
             }
         }
         const query = this.generateSubscriptionQuery(selectors ?? {})
-        if (this._options.token === 'test') return pureTopics
-        this._client = new SubscriptionClient(
-            this._subUrl,
+        if (this.#options.token === 'test') return pureTopics
+        this.#client.subscribe(
             {
-                reconnect: true,
-                reconnectionAttempts: 20,
-                connectionParams: () => ({
-                    headers: {
-                        Authorization: `Sdk ${this._options.token}`,
-                    },
-                }),
-            },
-            ws
-        )
-        this._client
-            .request({
                 query,
                 variables: {
                     topics: pureTopics,
                 },
-            })
-            .subscribe({
-                next: (value) => {
+            },
+            {
+                complete: () => void 0,
+                next: (value: GraphqlResponse) => {
                     if (value.errors) {
-                        // Convert library's graphql error to ours
                         throw new ApiError((value.errors[0] as unknown) as GraphqlError)
                     }
                     const sdkUpdate: SDKUpdate | undefined = value.data?.sdkUpdates
@@ -230,15 +231,16 @@ export class GatewayClient extends EventEmitter {
                         })
                     }
                 },
-                error: (err) => {
+                error: (err: CloseEvent) => {
                     throw new ApiError({
-                        message: err.message,
+                        message: err.reason,
                         extensions: {
-                            code: 'API_ERROR',
+                            code: 'WEBSOCKET_ERROR',
                         },
                     })
                 },
-            })
+            }
+        )
         return pureTopics
     }
 

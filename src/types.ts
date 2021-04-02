@@ -58,7 +58,7 @@ export type BotStats = {
     shardCount: number
 }
 
-export type GraphqlResponse<T> = {
+export type GraphqlResponse<T = any> = {
     data: null | T
     errors?: GraphqlError[]
 }
