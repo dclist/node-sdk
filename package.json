@@ -26,7 +26,7 @@
     "format": "prettier --write src",
     "build": "rm -rf ./dist && tsc",
     "test": "jest",
-    "prepublishOnly": "yarn lint && yarn test && yarn build"
+    "prepublishOnly": "yarn lint && yarn build"
   },
   "repository": {
     "type": "git",
